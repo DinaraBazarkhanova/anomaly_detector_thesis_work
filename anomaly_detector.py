@@ -124,14 +124,15 @@ def process_limits_streaming(data: Union[dict, pd.DataFrame]):
 
     detector = source.map(preprocess).map(fit_transform, anomaly_detector)
 
+    with open("data/anomaly_detection_result.json", 'a') as f:
+        if isinstance(data, str):
+            detector.map(lambda x: json.dumps(x)).to_mqtt(mqtt_settings['host'], mqtt_settings['port'],
+                                                           f"{mqtt_topic.rsplit('/', 1)[0]}/dynamic_limits",
+                                                           publish_kwargs={"retain": True})
+        elif isinstance(data, pd.DataFrame):
+            detector.sink(dump_to_file, f)
+
     return detector
-    # with open("dynamic_limits.json", 'a') as f:
-    #     if isinstance(data, str):
-    #         detector.map(lambda x: json.dumps(x)).to_mqtt(mqtt_settings['host'], mqtt_settings['port'],
-    #                                                        f"{mqtt_topic.rsplit('/', 1)[0]}/dynamic_limits",
-    #                                                        publish_kwargs={"retain": True})
-    #     elif isinstance(data, pd.DataFrame):
-    #         detector.sink(dump_to_file, f)
 
 
 st.title("Anomaly Detection with Streamlit")
