@@ -44,8 +44,6 @@ class MyOneClassSVM:
 
 
 def preprocess(x):
-    print('x-', x)
-
     if isinstance(x, pd.Series):
         return {
             "time": x['_time'].tz_localize(None),
@@ -65,7 +63,7 @@ def preprocess(x):
 
 
 def fit_transform(x, model):
-    timestamp = x["time"]
+    timestamp = x.pop("time")
     is_anomaly = model.process(x)
     return {
         "time": str(timestamp),
@@ -73,8 +71,9 @@ def fit_transform(x, model):
     }
 
 
-def dump_to_file(x, f):
-    print(json.dumps(x), file=f)
+def dump_to_file(x):
+    with open("data/anomaly_detection_result.json", 'a') as f:
+        print(json.dumps(x), file=f)
 
 
 # def return_summary(df):
@@ -124,13 +123,12 @@ def process_limits_streaming(data: Union[dict, pd.DataFrame]):
 
     detector = source.map(preprocess).map(fit_transform, anomaly_detector)
 
-    with open("data/anomaly_detection_result.json", 'a') as f:
-        if isinstance(data, str):
-            detector.map(lambda x: json.dumps(x)).to_mqtt(mqtt_settings['host'], mqtt_settings['port'],
-                                                           f"{mqtt_topic.rsplit('/', 1)[0]}/dynamic_limits",
-                                                           publish_kwargs={"retain": True})
-        elif isinstance(data, pd.DataFrame):
-            detector.sink(dump_to_file, f)
+    if isinstance(data, str):
+        detector.map(lambda x: json.dumps(x)).to_mqtt(mqtt_settings['host'], mqtt_settings['port'],
+                                                       f"{mqtt_topic.rsplit('/', 1)[0]}/dynamic_limits",
+                                                       publish_kwargs={"retain": True})
+    elif isinstance(data, pd.DataFrame):
+        detector.sink(dump_to_file)
 
     return detector
 
@@ -139,9 +137,11 @@ st.title("Anomaly Detection with Streamlit")
 
 data_type = st.radio("Select data type", ("MQTT Topic", "JSON/CSV file"))
 
+chart = st.line_chart()
+
 
 def update_chart(x):
-    chart.add_rowa(x.tail(1))
+    chart.add_rows(x)
 
 
 if data_type == "MQTT Topic":
@@ -172,40 +172,21 @@ elif data_type == "JSON/CSV file":
 
         else:
             st.write('Upload a file with a correct format first!')
-
-chart = st.line_chart()
-
-if __name__ == "__main__":
-    # Set up the signal handler to stop the app gracefully
-    import signal
-
-    signal.signal(signal.SIGINT, signal_handler)
-
-    # Create a session state to hold the data source and processed data
-    st.session_state.source = None
-    st.session_state.data = None
-
-    if data_type == "MQTT Topic":
-        # Start the MQTT data source
-        st.sidebar.write("Waiting for data from MQTT topic...")
-        st.session_state.source = process_limits_streaming(mqtt_settings)
-
-    elif data_type == "JSON/CSV file":
-        # Process the data from the uploaded file
-        st.write(f"Processing data from {uploaded_file.name}...")
-        st.session_state.data = process_limits_streaming(df).collect()
-
-        # Print summary of anomalous events
-        # summary = return_summary(st.session_state.data)
-        # st.write(summary)
-
-        # Update the chart with the processed data
-        chart.add_rows(st.session_state.data.tail(len(st.session_state.data) - chart.length))
-
-    # Start the Streamlit app
-    st.sidebar.write("App started.")
-    st.sidebar.write("Press Ctrl+C to stop the app.")
-    st.sidebar.write("---")
-
-    while True:
-        time.sleep(1)
+#
+# if __name__ == "__main__":
+#     # Set up the signal handler to stop the app gracefully
+#     import signal
+#
+#     signal.signal(signal.SIGINT, signal_handler)
+#
+#     # Create a session state to hold the data source and processed data
+#     st.session_state.source = None
+#     st.session_state.data = None
+#
+#     if data_type == "MQTT Topic":
+#         # Start the MQTT data source
+#         st.sidebar.write("Waiting for data from MQTT topic...")
+#         st.session_state.source = process_limits_streaming(mqtt_settings)
+#
+#     elif data_type == "JSON/CSV file":
+#         # Process the data from the uplo
