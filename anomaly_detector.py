@@ -1,11 +1,9 @@
-from abc import ABC
 from typing import Union
 import sys
 import time
 import pandas as pd
 import json
 import os
-from typing import List
 import datetime as dt
 from paho.mqtt.client import MQTTMessage
 from river import anomaly
@@ -45,28 +43,19 @@ class MyOneClassSVM:
 
 def preprocess(x):
     if isinstance(x, pd.Series):
-        return {
-            "time": x['_time'].tz_localize(None),
-            "data": x['_value']
-        }
+        return {"data": x['_value']}
     elif isinstance(x, tuple) and isinstance(x[1], pd.Series):
-        return {
-            "time": x[1]['_time'].tz_localize(None),
-            "data": x[1]['_value']
-        }
+        return {"data": x[1]['_value']}
     elif isinstance(x, dict):
         return list(x.values())[0]
     elif isinstance(x, MQTTMessage):
-        return {"time": dt.datetime.fromtimestamp(x.timestamp).replace(microsecond=0),
-                "data": float(x.payload)
-                }
+        return {"data": float(x.payload)}
 
 
 def fit_transform(x, model):
-    timestamp = x.pop("time")
     is_anomaly = model.process(x)
     return {
-        "time": str(timestamp),
+        "data": x.pop("data"),
         "anomaly": is_anomaly,
     }
 
@@ -137,11 +126,12 @@ st.title("Anomaly Detection with Streamlit")
 
 data_type = st.radio("Select data type", ("MQTT Topic", "JSON/CSV file"))
 
-chart = st.line_chart()
+chart = st.line_chart(pd.DataFrame({'data': [], 'anomaly'}))
 
 
 def update_chart(x):
-    chart.add_rows(x)
+    print(f"We wanna update chart with {x}")
+    chart.add_rows(pd.DataFrame.from_dict(x, orient='index'))
 
 
 if data_type == "MQTT Topic":
